@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Přidat inzerát | JobTik</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Outfit:wght@400;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            overflow: auto;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+        }
+
+        .page-container {
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 20px;
+            padding-bottom: 40px;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-top: 20px;
+        }
+
+        .back-btn {
+            width: 50px;
+            height: 50px;
+            background: #fff;
+            border: var(--main-border);
+            box-shadow: var(--shadow-hard);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .back-btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 8px 8px 0 #000;
+        }
+
+        .page-title {
+            font-family: var(--font-bold);
+            font-size: 1.8rem;
+            color: #fff;
+            text-transform: uppercase;
+            text-shadow: 3px 3px 0 #000;
+            flex: 1;
+        }
+
+        /* Credit Stripe */
+        .credit-stripe {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: var(--main-border);
+            box-shadow: 6px 6px 0 var(--color-accent);
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .credit-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .credit-icon {
+            font-size: 2.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        .credit-details h3 {
+            color: var(--color-accent);
+            font-family: var(--font-bold);
+            font-size: 1.8rem;
+            text-transform: uppercase;
+            margin: 0;
+        }
+
+        .credit-details p {
+            color: #aaa;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+
+        .credit-value {
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        .buy-credits-btn {
+            padding: 12px 20px;
+            background: var(--color-accent);
+            color: #000;
+            border: var(--main-border);
+            box-shadow: 4px 4px 0 #000;
+            font-family: var(--font-bold);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .buy-credits-btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+
+        /* Job Type Selection */
+        .job-type-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 500px) {
+            .job-type-selection {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .job-type-card {
+            background: #fff;
+            border: var(--main-border);
+            box-shadow: 6px 6px 0 #000;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .job-type-card:hover {
+            transform: translate(-3px, -3px);
+            box-shadow: 9px 9px 0 #000;
+        }
+
+        .job-type-card.selected {
+            background: var(--color-accent);
+            box-shadow: 6px 6px 0 var(--color-b2b);
+        }
+
+        .job-type-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .job-type-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .job-type-name {
+            font-family: var(--font-bold);
+            font-size: 1.1rem;
+            text-transform: uppercase;
+        }
+
+        .job-type-price {
+            background: #000;
+            color: var(--color-accent);
+            padding: 5px 12px;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .job-type-features {
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .job-type-features li {
+            margin-bottom: 5px;
+            padding-left: 0;
+            list-style: none;
+        }
+
+        .job-type-features li::before {
+            content: "✓ ";
+            color: var(--color-b2b);
+            font-weight: bold;
+        }
+
+        .job-type-duration {
+            margin-top: 10px;
+            padding: 8px;
+            background: #f0f0f0;
+            text-align: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .job-type-card.selected .job-type-duration {
+            background: #fff;
+        }
+
+        .form-card {
+            background: #fff;
+            border: var(--main-border);
+            box-shadow: 8px 8px 0 #000;
+        }
+
+        .form-card-header {
+            background: var(--color-accent);
+            border-bottom: var(--main-border);
+            padding: 20px;
+        }
+
+        .form-card-header h2 {
+            font-family: var(--font-bold);
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            margin: 0;
+        }
+
+        .form-card-body {
+            padding: 25px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 500px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: var(--main-border);
+            box-shadow: 4px 4px 0 #000;
+            font-family: var(--font-main);
+            font-size: 1rem;
+            resize: vertical;
+            transition: all 0.15s ease;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            box-shadow: 6px 6px 0 var(--color-accent);
+            transform: translate(-2px, -2px);
+        }
+
+        /* Media Upload */
+        .media-upload-area {
+            border: 4px dashed #000;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #f9f9f9;
+        }
+
+        .media-upload-area:hover {
+            background: var(--color-accent);
+            border-style: solid;
+        }
+
+        .media-upload-area.dragover {
+            background: var(--color-accent);
+            border-style: solid;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .upload-hint {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .media-preview-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .media-preview {
+            position: relative;
+            aspect-ratio: 1;
+            border: var(--main-border);
+            overflow: hidden;
+        }
+
+        .media-preview img,
+        .media-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .media-remove {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 25px;
+            height: 25px;
+            background: var(--color-b2c);
+            border: 2px solid #000;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .media-remove:hover {
+            background: #ff0000;
+            color: #fff;
+        }
+
+        /* Success */
+        .success-message {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .success-message.active {
+            display: block;
+        }
+
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .success-message h3 {
+            font-family: var(--font-bold);
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .success-links {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .success-link {
+            padding: 12px 20px;
+            background: #000;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: var(--main-border);
+            transition: all 0.15s ease;
+        }
+
+        .success-link:hover {
+            background: var(--color-accent);
+            color: #000;
+        }
+
+        .success-link.primary {
+            background: var(--color-accent);
+            color: #000;
+        }
+
+        /* States */
+        .auth-required {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .auth-required-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .auth-required h3 {
+            font-family: var(--font-bold);
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .auth-required p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .no-credits-warning {
+            background: var(--color-b2c);
+            border: var(--main-border);
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .no-credits-warning h4 {
+            font-family: var(--font-bold);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-container">
+        <div class="page-header">
+            <a href="index.html" class="back-btn">←</a>
+            <h1 class="page-title">Přidat inzerát</h1>
+        </div>
+
+        <!-- Credit Stripe -->
+        <div class="credit-stripe hidden" id="credit-stripe">
+            <div class="credit-info">
+                <div class="credit-icon">💎</div>
+                <div class="credit-details">
+                    <h3 id="credit-count">0</h3>
+                    <p>Dostupných kreditů</p>
+                    <span class="credit-value">1 kredit = 500 Kč</span>
+                </div>
+            </div>
+            <button class="buy-credits-btn" id="order-credits-btn">💰 Objednat kredity</button>
+        </div>
+
+        <div class="form-card">
+            <!-- Auth Required State -->
+            <div class="auth-required" id="auth-required">
+                <div class="auth-required-icon">🔒</div>
+                <h3>Pouze pro firmy</h3>
+                <p>Pro přidání inzerátu se musíte přihlásit jako firma.</p>
+                <a href="index.html" class="success-link primary">Přihlásit se</a>
+            </div>
+
+            <!-- Main Form Container -->
+            <div id="job-form-container" class="hidden">
+
+                <!-- No Credits Warning -->
+                <div class="no-credits-warning hidden" id="no-credits-warning">
+                    <h4>⚠️ Nemáte dostatek kreditů</h4>
+                    <p>Pro přidání inzerátu potřebujete alespoň 1 kredit.</p>
+                    <button class="buy-credits-btn" onclick="document.getElementById('order-credits-btn').click()">💰
+                        Objednat kredity</button>
+                </div>
+
+                <!-- Job Type Selection -->
+                <div class="job-type-selection" id="job-type-selection">
+                    <div class="job-type-card selected" data-type="1" data-cost="1">
+                        <div class="job-type-header">
+                            <span class="job-type-name">📷 Základní</span>
+                            <span class="job-type-price">1 kredit</span>
+                        </div>
+                        <ul class="job-type-features">
+                            <li>Až 3 fotky</li>
+                            <li>Standardní zobrazení</li>
+                            <li>Komentáře a reakce</li>
+                        </ul>
+                        <div class="job-type-duration">⏱️ Platnost 30 dní</div>
+                    </div>
+
+                    <div class="job-type-card" data-type="2" data-cost="2">
+                        <div class="job-type-header">
+                            <span class="job-type-name">🎬 Premium</span>
+                            <span class="job-type-price">2 kredity</span>
+                        </div>
+                        <ul class="job-type-features">
+                            <li>Foto + video</li>
+                            <li>Sdílení na soc. sítě</li>
+                            <li>Prioritní zobrazení</li>
+                        </ul>
+                        <div class="job-type-duration">⏱️ Platnost 60 dní</div>
+                    </div>
+                </div>
+
+                <div class="form-card-header">
+                    <h2>📝 Nová pracovní nabídka</h2>
+                </div>
+
+                <div class="form-card-body">
+                    <form id="job-form">
+                        <div class="form-error" id="form-error"></div>
+
+                        <div class="form-group">
+                            <label>Název pozice *</label>
+                            <input type="text" class="form-input" id="job-title" placeholder="např. Frontend Developer"
+                                required>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Lokalita *</label>
+                                <input type="text" class="form-input" id="job-location" placeholder="např. Praha"
+                                    required>
+                            </div>
+                            <div class="form-group">
+                                <label>Typ práce</label>
+                                <select class="form-input" id="job-work-type">
+                                    <option value="full-time">Plný úvazek</option>
+                                    <option value="part-time">Částečný úvazek</option>
+                                    <option value="contract">DPP/DPČ</option>
+                                    <option value="internship">Stáž</option>
+                                    <option value="remote">Remote</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Plat od (Kč/měsíc)</label>
+                                <input type="number" class="form-input" id="job-salary-min" placeholder="30000">
+                            </div>
+                            <div class="form-group">
+                                <label>Plat do (Kč/měsíc)</label>
+                                <input type="number" class="form-input" id="job-salary-max" placeholder="50000">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Kategorie</label>
+                            <select class="form-input" id="job-category">
+                                <option value="it">IT / Vývoj</option>
+                                <option value="marketing">Marketing</option>
+                                <option value="sales">Obchod</option>
+                                <option value="design">Design</option>
+                                <option value="finance">Finance</option>
+                                <option value="hr">HR</option>
+                                <option value="gastro">Gastronomie</option>
+                                <option value="retail">Retail</option>
+                                <option value="other">Ostatní</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Popis pozice *</label>
+                            <textarea class="form-textarea" id="job-description"
+                                placeholder="Popište náplň práce, požadavky, benefity..." required></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Požadavky</label>
+                            <textarea class="form-textarea" id="job-requirements"
+                                placeholder="Co očekáváte od kandidáta..." style="min-height: 80px;"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Benefity</label>
+                            <input type="text" class="form-input" id="job-benefits"
+                                placeholder="např. Stravenky, home office, sick days...">
+                        </div>
+
+                        <div class="form-group">
+                            <label id="media-label">Fotky (max 3)</label>
+                            <div class="media-upload-area" id="media-upload">
+                                <div class="upload-icon" id="upload-icon">📷</div>
+                                <div class="upload-text" id="upload-text">Klikněte nebo přetáhněte fotky</div>
+                                <div class="upload-hint" id="upload-hint">JPG, PNG, max 2MB na fotku</div>
+                            </div>
+                            <input type="file" id="media-input" accept="image/*" multiple style="display: none;">
+                            <div class="media-preview-container" id="media-previews"></div>
+                        </div>
+
+                        <button type="submit" class="form-btn" id="submit-btn">
+                            🚀 Publikovat za <span id="submit-cost">1</span> kredit
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Success State -->
+            <div class="success-message" id="success-message">
+                <div class="success-icon">🎉</div>
+                <h3>Inzerát publikován!</h3>
+                <p id="success-text">Vaše nabídka je nyní viditelná.</p>
+                <div class="success-links">
+                    <a href="index.html" class="success-link">Zpět na Feed</a>
+                    <a href="#" class="success-link primary" id="view-job-link">Zobrazit inzerát</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Credits Modal -->
+    <div class="modal-overlay" id="order-credits-modal">
+        <div class="modal" style="max-width: 450px;">
+            <div class="modal-header" style="background: var(--color-accent);">
+                <h2>💎 Objednat kredity</h2>
+                <button class="modal-close" id="order-modal-close">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 25px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 3rem;">💰</div>
+                    <p style="font-weight: 700; text-transform: uppercase;">1 kredit = 500 Kč</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Počet kreditů</label>
+                    <select class="form-input" id="credit-amount">
+                        <option value="1">1 kredit - 500 Kč</option>
+                        <option value="2">2 kredity - 1 000 Kč</option>
+                        <option value="5">5 kreditů - 2 500 Kč</option>
+                        <option value="10">10 kreditů - 5 000 Kč</option>
+                        <option value="20">20 kreditů - 10 000 Kč</option>
+                    </select>
+                </div>
+
+                <div style="background: #f9f9f9; border: 3px solid #000; padding: 15px; margin-bottom: 20px;">
+                    <p style="font-size: 0.9rem; margin: 0;"><strong>Jak to funguje:</strong></p>
+                    <ol style="margin: 10px 0 0 20px; font-size: 0.85rem;">
+                        <li>Vyberte počet kreditů</li>
+                        <li>Odešlete objednávku</li>
+                        <li>Admin vám přidělí kredity</li>
+                        <li>Platba na fakturu</li>
+                    </ol>
+                </div>
+
+                <button class="form-btn" id="submit-order-btn">📧 Odeslat objednávku</button>
+                <p style="text-align: center; font-size: 0.75rem; color: #999; margin-top: 10px;">
+                    Po odeslání vás bude kontaktovat admin.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="job-form.js"></script>
+</body>
+
+</html>
