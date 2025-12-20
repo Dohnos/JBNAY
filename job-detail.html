@@ -76,6 +76,44 @@
             text-transform: uppercase;
             text-shadow: 3px 3px 0 #000;
             line-height: 1.1;
+            margin: 0;
+            flex: 1;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .owner-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .owner-btn {
+            width: 38px;
+            height: 38px;
+            background: #fff;
+            border: 3px solid #000;
+            box-shadow: 3px 3px 0 #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.15s ease;
+        }
+
+        .owner-btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 5px 5px 0 #000;
+        }
+
+        .owner-btn.delete:hover {
+            background: #ff4d4d;
         }
 
         /* Job Card */
@@ -462,7 +500,13 @@
                 <a href="index.html" class="back-btn">←</a>
                 <div class="header-info">
                     <span class="job-category-tag" id="job-category">Načítání...</span>
-                    <h1 class="page-title" id="job-title">Načítání...</h1>
+                    <div class="header-top">
+                        <h1 class="page-title" id="job-title">Načítání...</h1>
+                        <div class="owner-actions hidden" id="owner-actions">
+                            <button class="owner-btn" id="edit-job-btn" title="Editovat">✏️</button>
+                            <button class="owner-btn delete" id="delete-job-btn" title="Smazat">🗑️</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -498,6 +542,7 @@
                                 <div class="stat-label">Oblíbení</div>
                             </div>
                         </div>
+                        <div id="expiry-badge-container"></div>
                     </div>
                 </div>
 

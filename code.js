@@ -65,6 +65,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById('inbox-close')?.addEventListener('click', () => closeModal('inbox-modal'));
     document.getElementById('comments-close')?.addEventListener('click', () => closeModal('comments-modal'));
     document.getElementById('admin-close')?.addEventListener('click', () => closeModal('admin-modal'));
+    document.getElementById('dashboard-close')?.addEventListener('click', () => closeModal('dashboard-modal'));
+
 
     // ==================== AUTH TABS ====================
     document.querySelectorAll('.auth-tab').forEach(tab => {
@@ -130,7 +132,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 jobsStat?.classList.remove('hidden');
                 favoritesNav?.classList.add('hidden'); // Companies can't have favorites
 
+                // Show Dashboard button, hide Applications button
+                document.getElementById('my-applications-btn')?.classList.add('hidden');
+                document.getElementById('company-dashboard-btn')?.classList.remove('hidden');
+
                 // Show credits in navbar
+
                 const creditsNav = document.getElementById('credits-nav');
                 const navCreditsCount = document.getElementById('nav-credits-count');
                 if (isCompanyApproved()) {
@@ -144,10 +151,12 @@ document.addEventListener("DOMContentLoaded", () => {
                         typeBadge.textContent = '✅ Schválená firma';
                         typeBadge.style.cssText = 'background: var(--color-b2b); border: 2px solid #000; padding: 5px 15px; margin-top: 10px; font-weight: 700; text-transform: uppercase; font-size: 0.75rem;';
                         createBtn?.classList.remove('hidden');
+                        document.getElementById('nav-dash-btn')?.classList.remove('hidden');
                     } else {
                         typeBadge.textContent = '⏳ Čeká na schválení';
                         typeBadge.style.cssText = 'background: var(--color-b2c); border: 2px solid #000; padding: 5px 15px; margin-top: 10px; font-weight: 700; text-transform: uppercase; font-size: 0.75rem;';
                         createBtn?.classList.add('hidden');
+                        document.getElementById('nav-dash-btn')?.classList.add('hidden');
                     }
                 }
 
@@ -158,6 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 jobsStat?.classList.add('hidden');
                 favoritesNav?.classList.remove('hidden');
                 createBtn?.classList.add('hidden');
+                document.getElementById('nav-dash-btn')?.classList.add('hidden');
                 document.getElementById('credits-nav')?.classList.add('hidden');
 
                 if (!isAdmin()) {
@@ -173,6 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('modal-comment-form')?.classList.add('hidden');
             favoritesNav?.classList.remove('hidden');
             createBtn?.classList.add('hidden');
+            document.getElementById('nav-dash-btn')?.classList.add('hidden');
             adminNav?.classList.add('hidden');
             document.getElementById('credits-nav')?.classList.add('hidden');
         }
@@ -252,6 +263,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 showToast('✅ Účet vytvořen! Vítej, ' + name);
             }
             errorEl.classList.remove('active');
+
+            // Auto reload after registration to refresh state
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+
         } catch (error) {
             console.error('Registration error:', error);
             let message = '❌ Chyba při registraci';
@@ -278,6 +295,12 @@ document.addEventListener("DOMContentLoaded", () => {
             await firebase.auth().signInWithEmailAndPassword(email, password);
             showToast('✅ Přihlášení úspěšné!');
             errorEl.classList.remove('active');
+
+            // Auto reload after login to refresh state
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+
         } catch (error) {
             console.error('Login error:', error);
             errorEl.textContent = '❌ Nesprávný email nebo heslo';
@@ -568,25 +591,40 @@ document.addEventListener("DOMContentLoaded", () => {
         slide.dataset.jobId = job.id;
 
         const storedImages = JSON.parse(localStorage.getItem('jobImages') || '{}');
-        const images = job.images?.length ? job.images : (storedImages[job.id] || []);
-        const bgImage = images[0] || null;
+        const images = job.images || [];
+        const videos = job.videos || [];
+        const hasVideo = videos.length > 0;
 
-        // Auto-crop style for responsive images
-        const bgStyle = bgImage
-            ? `background-image: url('${bgImage}'); background-size: cover; background-position: center center;`
-            : 'background: var(--bg-gradient);';
+        let backgroundContent = '';
+        if (hasVideo) {
+            backgroundContent = `
+                <video src="${videos[0]}" loop playsinline class="job-video-bg" poster="${images[0] || ''}"></video>
+            `;
+        } else {
+            const bgImage = images[0] || '';
+            const bgStyle = bgImage
+                ? `background-image: url('${bgImage}');`
+                : 'background: var(--bg-gradient);';
+            backgroundContent = `<div class="job-bg-inner" style="${bgStyle}"></div>`;
+        }
 
         const showFavoriteBtn = !isCompany();
 
-        // Calculate expiration
-        const daysLeft = job.expiresAt ? Math.ceil((job.expiresAt - Date.now()) / (1000 * 60 * 60 * 24)) : null;
-        const isExpiringSoon = daysLeft !== null && daysLeft <= 7;
-        const expiryText = daysLeft !== null ? `${daysLeft} dní` : '';
+        // Calculate expiration countdown
+        const now = Date.now();
+        const diffMs = job.expiresAt ? (job.expiresAt - now) : 0;
+        const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        const isExpiringSoon = daysLeft <= 7;
+
+        let expiryText = '';
+        if (daysLeft > 1) expiryText = `${daysLeft} dní`;
+        else if (daysLeft === 1) expiryText = `Poslední den`;
+        else expiryText = `Dnes končí`;
 
         slide.innerHTML = `
-            <div class="job-bg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; ${bgStyle} z-index: 1;">
-                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 50%, rgba(0,0,0,0.7) 100%);"></div>
-            </div>
+            <div class="job-bg-outer"></div>
+            ${backgroundContent}
+            <div class="job-bg-overlay"></div>
             <div class="overlay"></div>
             
             <div class="content-layer">
@@ -673,11 +711,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(async entry => {
+                const video = entry.target.querySelector('.job-video-bg');
+
                 if (entry.isIntersecting) {
                     const jobId = entry.target.dataset.jobId;
                     if (jobId) {
                         await incrementView(jobId);
                     }
+                    if (video) video.play().catch(e => console.log("Autoplay blocked", e));
+                } else {
+                    if (video) video.pause();
                 }
             });
         }, observerOptions);
@@ -1147,13 +1190,143 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    document.getElementById('scroll-down')?.addEventListener('click', () => {
-        document.querySelector('.slide')?.scrollIntoView({ behavior: 'smooth' });
+    // Dashboard Click
+    document.getElementById('company-dashboard-btn')?.addEventListener('click', () => {
+        closeModal('profile-modal');
+        openModal('dashboard-modal');
+        loadCompanyJobs();
     });
+
+    document.getElementById('nav-dash-btn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openModal('dashboard-modal');
+        loadCompanyJobs();
+    });
+
+    // ==================== COMPANY DASHBOARD LOGIC ====================
+    async function loadCompanyJobs() {
+        if (!currentUser) return;
+        const container = document.getElementById('company-jobs-list');
+        const statsGrid = document.getElementById('dashboard-total-stats');
+
+        try {
+            const snapshot = await firebase.database().ref('jobs').once('value');
+            const jobsData = snapshot.val() || {};
+
+            // Fetch comments counts
+            const commentsSnapshot = await firebase.database().ref('comments').once('value');
+            const commentsData = commentsSnapshot.val() || {};
+
+            const companyJobs = Object.entries(jobsData)
+                .map(([id, data]) => {
+                    const jobComments = commentsData[id] || {};
+                    const count = Object.keys(jobComments).length;
+                    return { id, ...data, actualCommentsCount: count };
+                })
+                .filter(job => job.companyId === currentUser.uid || job.userId === currentUser.uid);
+
+            // Update stats
+            document.getElementById('profile-jobs-count').textContent = companyJobs.length;
+
+            let totalViews = 0;
+            let totalLikes = 0;
+            let totalComments = 0;
+
+            companyJobs.forEach(job => {
+                totalViews += (job.views || 0);
+                totalLikes += (job.likes || 0);
+                totalComments += (job.actualCommentsCount || 0);
+            });
+
+            statsGrid.innerHTML = `
+                <div class="dashboard-stat-card">
+                    <div class="stat-value">${totalViews}</div>
+                    <div class="stat-label">👀 Zobrazení</div>
+                </div>
+                <div class="dashboard-stat-card">
+                    <div class="stat-value">${totalLikes}</div>
+                    <div class="stat-label">❤️ Lajky</div>
+                </div>
+                <div class="dashboard-stat-card">
+                    <div class="stat-value">${totalComments}</div>
+                    <div class="stat-label">💬 Komentáře</div>
+                </div>
+            `;
+
+            if (companyJobs.length === 0) {
+                container.innerHTML = `<div style="text-align: center; padding: 40px; color: #666;">Zatím jste nepřidali žádný inzerát.</div>`;
+            } else {
+                container.innerHTML = companyJobs.map(job => `
+                    <div class="dashboard-job-card">
+                        <div class="dashboard-job-header">
+                            <div class="dashboard-job-title">${job.title}</div>
+                            <div style="font-size: 0.75rem; color: #666;">ID: ${job.id}</div>
+                        </div>
+                        <div class="dashboard-job-stats-mini">
+                            <div class="job-stat-mini">👀 ${job.views || 0}</div>
+                            <div class="job-stat-mini">❤️ ${job.likes || 0}</div>
+                            <div class="job-stat-mini">💬 ${job.actualCommentsCount || 0}</div>
+                        </div>
+                        <div class="dashboard-job-actions">
+                            <button class="dash-btn dash-btn-edit" onclick="editJob('${job.id}')">✏️ Editovat</button>
+                            <button class="dash-btn dash-btn-delete" onclick="deleteJobFromDash('${job.id}')">🗑️ Smazat</button>
+                            <a href="job-detail.html?id=${job.id}" class="dash-btn" style="background: #eee; text-decoration: none; color: #000;">👁️ Zobrazit</a>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+            container.innerHTML = `<div style="text-align: center; padding: 40px; color: red;">Chyba při načítání dat.</div>`;
+        }
+    }
+
+
+    window.deleteJobFromDash = async function (jobId) {
+        if (!confirm('Opravdu chcete tento inzerát smazat?')) return;
+
+        try {
+            await firebase.database().ref(`jobs/${jobId}`).remove();
+            showToast('🗑️ Inzerát smazán');
+            loadCompanyJobs(); // Reload dashboard
+            loadJobs(); // Reload feed
+        } catch (error) {
+            console.error('Error deleting job:', error);
+            showToast('❌ Chyba při mazání');
+        }
+    };
+
+    window.editJob = function (jobId) {
+        window.location.href = `job-form.html?edit=${jobId}`;
+    };
+
+
+    // ==================== NAVBAR VISIBILITY LOGIC ====================
+    let lastScrollTop = 0;
+    const navbar = document.getElementById('main-nav');
+    const appContainer = document.getElementById('app');
+
+    if (appContainer && navbar) {
+        appContainer.addEventListener('scroll', () => {
+            const scrollTop = appContainer.scrollTop;
+
+            // Show if scrolling up OR at the very top
+            if (scrollTop < lastScrollTop || scrollTop < 50) {
+                navbar.classList.remove('nav-hidden');
+            }
+            // Hide if scrolling down AND not at the top
+            else if (scrollTop > lastScrollTop && scrollTop > 100) {
+                navbar.classList.add('nav-hidden');
+            }
+
+            lastScrollTop = scrollTop;
+        }, { passive: true });
+    }
 
     document.getElementById('cta-jobs')?.addEventListener('click', (e) => {
         e.preventDefault();
-        document.querySelector('.slide')?.scrollIntoView({ behavior: 'smooth' });
+        const firstSlide = document.querySelector('.slide');
+        if (firstSlide) firstSlide.scrollIntoView({ behavior: 'smooth' });
     });
 
     // ==================== KEYBOARD NAV ====================

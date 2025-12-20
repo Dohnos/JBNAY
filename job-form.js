@@ -3,9 +3,29 @@
 document.addEventListener("DOMContentLoaded", () => {
     let currentUser = null;
     let userData = null;
-    let uploadedMedia = [];
+    let uploadedMedia = []; // For previews
+    let fileObjects = [];   // For actual File objects to upload
     let selectedJobType = 1; // 1 = Basic, 2 = Premium
     let userCredits = 0;
+
+    // Edit mode
+    let editMode = false;
+    let editingJobId = null;
+    let existingMedia = []; // To keep track of old images when editing
+    let existingVideos = [];
+
+
+    // Cropper instance
+    let cropper = null;
+    let currentCroppingFile = null;
+    let currentCroppingIndex = -1;
+
+
+    // ==================== CLOUDINARY CONFIG ====================
+    // ⚠️ REPLACE THESE WITH YOUR ACTUAL VALUES
+    const CLOUDINARY_CLOUD_NAME = 'drrzl7evt';
+    const CLOUDINARY_UPLOAD_PRESET = 'jobtik_preset';
+
 
     // ==================== AUTH CHECK ====================
     firebase.auth().onAuthStateChanged(async (user) => {
@@ -25,7 +45,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     userCredits = userData.credits || 0;
                     updateCreditDisplay();
                     updateFormState();
+
+                    // Check for edit mode
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (urlParams.has('edit')) {
+                        editingJobId = urlParams.get('edit');
+                        loadJobForEdit(editingJobId);
+                    }
                 } else {
+
                     document.getElementById('auth-required').innerHTML = `
                         <div class="auth-required-icon">⏳</div>
                         <h3>Čekáte na schválení</h3>
@@ -77,10 +105,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateSubmitButton() {
+        if (editMode) return; // Don't update cost/text in edit mode
         const cost = selectedJobType === 1 ? 1 : 2;
-        document.getElementById('submit-cost').textContent = cost;
-        document.getElementById('submit-btn').innerHTML = `🚀 Publikovat za ${cost} kredit${cost > 1 ? 'y' : ''}`;
+        const submitCostEl = document.getElementById('submit-cost');
+        if (submitCostEl) submitCostEl.textContent = cost;
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn && submitBtn.querySelector('#submit-cost')) {
+            submitBtn.innerHTML = `🚀 Publikovat za ${cost} kredit${cost > 1 ? 'y' : ''}`;
+        }
     }
+
 
     // ==================== JOB TYPE SELECTION ====================
     document.querySelectorAll('.job-type-card').forEach(card => {
@@ -114,13 +148,13 @@ document.addEventListener("DOMContentLoaded", () => {
             label.textContent = 'Fotky nebo video (max 3)';
             icon.textContent = '🎬';
             text.textContent = 'Klikněte pro foto/video';
-            hint.textContent = 'JPG, PNG, MP4, max 10MB';
+            hint.textContent = 'JPG, PNG (10MB), MP4 (50MB)';
             input.accept = 'image/*,video/*';
         } else {
             label.textContent = 'Fotky (max 3)';
             icon.textContent = '📷';
             text.textContent = 'Klikněte nebo přetáhněte fotky';
-            hint.textContent = 'JPG, PNG, max 2MB na fotku';
+            hint.textContent = 'JPG, PNG, max 10MB na fotku';
             input.accept = 'image/*';
         }
     }
@@ -194,8 +228,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleFiles(files) {
         const maxFiles = 3;
-        const maxSizeImage = 2 * 1024 * 1024; // 2MB
-        const maxSizeVideo = 10 * 1024 * 1024; // 10MB
+        const maxSizeImage = 10 * 1024 * 1024; // 10MB (Cloudinary handles large files well)
+        const maxSizeVideo = 50 * 1024 * 1024; // 50MB
 
         for (const file of files) {
             if (uploadedMedia.length >= maxFiles) {
@@ -218,23 +252,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const maxSize = isVideo ? maxSizeVideo : maxSizeImage;
             if (file.size > maxSize) {
-                showError(`Soubor příliš velký (max ${isVideo ? '10MB' : '2MB'})`);
+                showError(`Soubor příliš velký (max ${isVideo ? '50MB' : '10MB'})`);
                 continue;
             }
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                uploadedMedia.push({
-                    data: e.target.result,
-                    type: isVideo ? 'video' : 'image'
-                });
-                renderPreviews();
-            };
-            reader.readAsDataURL(file);
+            // Create preview or open cropper for images
+            if (isImage) {
+                openCropper(file);
+            } else {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    uploadedMedia.push({
+                        data: e.target.result,
+                        type: 'video'
+                    });
+                    fileObjects.push(file);
+                    renderPreviews();
+                };
+                reader.readAsDataURL(file);
+            }
         }
     }
 
     function renderPreviews() {
+        const previewContainer = document.getElementById('media-previews');
         previewContainer.innerHTML = uploadedMedia.map((media, index) => `
             <div class="media-preview">
                 ${media.type === 'video'
@@ -248,9 +289,240 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.addEventListener('click', () => {
                 const index = parseInt(btn.dataset.index);
                 uploadedMedia.splice(index, 1);
+                fileObjects.splice(index, 1);
                 renderPreviews();
             });
         });
+    }
+
+    // ==================== CROPPER LOGIC ====================
+
+    function openCropper(file) {
+        currentCroppingFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const cropperImage = document.getElementById('cropper-image');
+            cropperImage.src = e.target.result;
+            document.getElementById('cropper-modal').classList.add('active');
+
+            if (cropper) cropper.destroy();
+
+            cropper = new Cropper(cropperImage, {
+                aspectRatio: 9 / 16,
+                viewMode: 1,
+                autoCropArea: 1,
+                dragMode: 'move',
+                responsive: true
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+
+    document.getElementById('cropper-close')?.addEventListener('click', closeCropper);
+    document.getElementById('cropper-cancel')?.addEventListener('click', closeCropper);
+
+    function closeCropper() {
+        document.getElementById('cropper-modal').classList.remove('active');
+        if (cropper) cropper.destroy();
+        cropper = null;
+        currentCroppingFile = null;
+    }
+
+    document.getElementById('cropper-confirm')?.addEventListener('click', () => {
+        if (!cropper) return;
+
+        cropper.getCroppedCanvas({
+            width: 800,
+            height: 1422
+        }).toBlob((blob) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadedMedia.push({
+                    data: e.target.result,
+                    type: 'image'
+                });
+
+                // Convert blob back to file for consistency if needed, or store as blob
+                const croppedFile = new File([blob], currentCroppingFile.name, { type: 'image/jpeg' });
+                fileObjects.push(croppedFile);
+
+                renderPreviews();
+                closeCropper();
+            };
+            reader.readAsDataURL(blob);
+        }, 'image/jpeg', 0.85);
+    });
+
+    // ==================== LOCATION AUTOCOMPLETE ====================
+
+    const locationInput = document.getElementById('job-location');
+    const suggestionsList = document.getElementById('location-suggestions');
+    let debounceTimer;
+
+    locationInput?.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        clearTimeout(debounceTimer);
+
+        if (query.length < 3) {
+            suggestionsList.classList.add('hidden');
+            return;
+        }
+
+        debounceTimer = setTimeout(async () => {
+            try {
+                // Using Nominatim API (OpenStreetMap)
+                // limit=10 to find duplicates and then filter to 5
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=15&countrycodes=cz,sk&featuretype=settlement`);
+                const data = await response.json();
+
+                if (data.length > 0) {
+                    renderSuggestions(data, query);
+                } else {
+                    suggestionsList.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Autocomplete error:', error);
+            }
+        }, 300);
+    });
+
+
+    function renderSuggestions(suggestions, query) {
+        const uniqueCities = new Map();
+        const lowQuery = query.toLowerCase();
+
+        suggestions.forEach(s => {
+            const city = s.address.city || s.address.town || s.address.village || s.address.municipality || s.display_name.split(',')[0];
+            const country = s.address.country === 'Czechia' ? 'CZ' : (s.address.country === 'Slovakia' ? 'SK' : '');
+            const key = `${city}|${country}`;
+
+            if (!uniqueCities.has(key)) {
+                uniqueCities.set(key, { city, country, label: `${city}${country ? ' (' + country + ')' : ''}` });
+            }
+        });
+
+        // Convert to array and Sort: Prefix matches first
+        const sorted = Array.from(uniqueCities.values()).sort((a, b) => {
+            const aStarts = a.city.toLowerCase().startsWith(lowQuery);
+            const bStarts = b.city.toLowerCase().startsWith(lowQuery);
+            if (aStarts && !bStarts) return -1;
+            if (!aStarts && bStarts) return 1;
+            return a.city.localeCompare(b.city);
+        }).slice(0, 5);
+
+        if (sorted.length === 0) {
+            suggestionsList.classList.add('hidden');
+            return;
+        }
+
+        suggestionsList.innerHTML = sorted.map(s =>
+            `<div class="suggestion-item" data-value="${s.city}">${s.label}</div>`
+        ).join('');
+
+
+        suggestionsList.classList.remove('hidden');
+
+        suggestionsList.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                locationInput.value = item.dataset.value;
+                suggestionsList.classList.add('hidden');
+            });
+        });
+    }
+
+    // Close suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!locationInput?.contains(e.target) && !suggestionsList?.contains(e.target)) {
+            suggestionsList?.classList.add('hidden');
+        }
+    });
+
+    // ==================== AI GENERATOR ====================
+    document.querySelectorAll('.ai-gen-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.dataset.target;
+            const jobTitle = document.getElementById('job-title').value || 'Pracovní pozice';
+            const category = document.getElementById('job-category').value;
+
+            let prompt = "";
+            if (targetId === 'job-description') {
+                prompt = `Napiš stručný a atraktivní popis pracovní pozice "${jobTitle}" v kategorii "${category}" pro TikTok generaci v češtině.`;
+            } else if (targetId === 'job-requirements') {
+                prompt = `Napiš 5 klíčových požadavků pro pozici "${jobTitle}".`;
+            } else if (targetId === 'job-benefits') {
+                prompt = `Napiš seznam atraktivních benefitů pro pozici "${jobTitle}".`;
+            }
+
+            const perplexityUrl = `https://www.perplexity.ai/search?q=${encodeURIComponent(prompt)}`;
+            window.open(perplexityUrl, '_blank');
+        });
+    });
+
+
+    // ==================== CLIENT SIDE RESIZE ====================
+    function resizeImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // Target TikTok ratio (9:16) - e.g. 800x1422
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 1422;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob((blob) => {
+                        resolve(blob);
+                    }, 'image/jpeg', 0.85); // 85% quality
+                };
+            };
+        });
+    }
+
+    // ==================== CLOUDINARY UPLOAD ====================
+    async function uploadToCloudinary(file) {
+        const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            return data.secure_url; // URL of the uploaded asset (optimized by preset)
+        } catch (error) {
+            console.error('Cloudinary upload error:', error);
+            throw error;
+        }
     }
 
     // ==================== ERROR HANDLING ====================
@@ -259,6 +531,100 @@ document.addEventListener("DOMContentLoaded", () => {
         errorEl.textContent = '❌ ' + message;
         errorEl.classList.add('active');
         setTimeout(() => errorEl.classList.remove('active'), 3000);
+    }
+
+    // ==================== EDIT MODE HELPERS ====================
+    async function loadJobForEdit(id) {
+        try {
+            const snapshot = await firebase.database().ref(`jobs/${id}`).once('value');
+            const job = snapshot.val();
+
+            if (!job || (job.companyId !== currentUser.uid && job.userId !== currentUser.uid)) {
+                showError('Tento inzerát nemůžete editovat.');
+                return;
+            }
+
+            editMode = true;
+            document.querySelector('.page-title').textContent = '✏️ Editovat inzerát';
+            document.getElementById('submit-btn').textContent = '💾 Uložit změny';
+            document.getElementById('credit-stripe').classList.add('hidden'); // No credit info in edit mode
+
+
+            // Populate fields
+            document.getElementById('job-title').value = job.title;
+            document.getElementById('job-location').value = job.location;
+            document.getElementById('job-category').value = job.category;
+            document.getElementById('job-work-type').value = job.type || 'HPP';
+            document.getElementById('job-salary-min').value = job.salaryMin || '';
+            document.getElementById('job-salary-max').value = job.salaryMax || '';
+            document.getElementById('job-description').value = job.description;
+            document.getElementById('job-requirements').value = job.requirements || '';
+            document.getElementById('job-benefits').value = job.benefits || '';
+
+            selectedJobType = job.jobPlanType || 1;
+            updateFormState();
+
+            // Load existing media
+            existingMedia = job.images || [];
+            existingVideos = job.videos || [];
+
+            // Map to uploadedMedia for preview
+            uploadedMedia = [];
+            existingMedia.forEach(url => {
+                uploadedMedia.push({ data: url, type: 'image', existing: true });
+            });
+            existingVideos.forEach(url => {
+                uploadedMedia.push({ data: url, type: 'video', existing: true });
+            });
+
+            renderPreviews();
+        } catch (error) {
+            console.error('Error loading job for edit:', error);
+            showError('Nepodařilo se načíst data inzerátu.');
+        }
+    }
+
+    // Update renderPreviews to handle existing vs new media removal
+    function renderPreviews() {
+        const previewContainer = document.getElementById('media-previews');
+        previewContainer.innerHTML = uploadedMedia.map((media, index) => {
+            const src = media.data;
+            return `
+                <div class="media-preview">
+                    ${media.type === 'video'
+                    ? `<video src="${src}" muted></video>`
+                    : `<img src="${src}" alt="Preview ${index + 1}">`}
+                    <button type="button" class="media-remove" data-index="${index}">✕</button>
+                </div>
+            `;
+        }).join('');
+
+        previewContainer.querySelectorAll('.media-remove').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                const removedItem = uploadedMedia[index];
+
+                // If it was existing, we'll need to update existingMedia lists
+                if (removedItem.existing) {
+                    if (removedItem.type === 'image') {
+                        existingMedia = existingMedia.filter(u => u !== removedItem.data);
+                    } else {
+                        existingVideos = existingVideos.filter(u => u !== removedItem.data);
+                    }
+                } else {
+                    // It was a new file, find its index in fileObjects
+                    // Since fileObjects only contains NEW files, we need to know how many existing items were before it
+                    let newFileIndex = 0;
+                    for (let i = 0; i < index; i++) {
+                        if (!uploadedMedia[i].existing) newFileIndex++;
+                    }
+                    fileObjects.splice(newFileIndex, 1);
+                }
+
+                uploadedMedia.splice(index, 1);
+                renderPreviews();
+            });
+        });
     }
 
     // ==================== FORM SUBMISSION ====================
@@ -271,7 +637,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const cost = selectedJobType === 1 ? 1 : 2;
-        if (userCredits < cost) {
+        if (!editMode && userCredits < cost) { // Only check credits if not in edit mode
             showError('Nedostatek kreditů');
             return;
         }
@@ -291,9 +657,42 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        if (uploadedMedia.length === 0) {
+            showError('Přidejte alespoň jeden obrázek');
+            return;
+        }
+
+        // Disable button and show loading
         const submitBtn = document.getElementById('submit-btn');
+        const originalBtnText = submitBtn.textContent;
         submitBtn.disabled = true;
-        submitBtn.textContent = '⏳ Publikuji...';
+        submitBtn.innerHTML = '⏳ Nahrávám média... (0/' + fileObjects.length + ')';
+
+        // Upload media to Cloudinary
+        const uploadedUrls = [];
+        const uploadedVideoUrls = [];
+
+        try {
+            for (let i = 0; i < fileObjects.length; i++) {
+                submitBtn.innerHTML = `⏳ Nahrávám média... (${i + 1}/${fileObjects.length})`;
+                const file = fileObjects[i];
+                const url = await uploadToCloudinary(file);
+
+                if (file.type.startsWith('video/')) {
+                    uploadedVideoUrls.push(url);
+                } else {
+                    uploadedUrls.push(url);
+                }
+            }
+        } catch (uploadError) {
+            console.error('Upload failed:', uploadError);
+            showError('Chyba při nahrávání médií. Zkuste to prosím znovu.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalBtnText;
+            return;
+        }
+
+        submitBtn.innerHTML = '🚀 Publikuji...';
 
         try {
             // Calculate expiration
@@ -301,13 +700,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const daysValid = selectedJobType === 1 ? 30 : 60;
             const expiresAt = now + (daysValid * 24 * 60 * 60 * 1000);
 
-            // Generate job ID
-            const jobRef = firebase.database().ref('jobs').push();
+            // Use existing or new ID
+            const jobRef = editMode ? firebase.database().ref(`jobs/${editingJobId}`) : firebase.database().ref('jobs').push();
             const jobId = jobRef.key;
-
-            // Separate images and videos
-            const images = uploadedMedia.filter(m => m.type === 'image').map(m => m.data);
-            const videos = uploadedMedia.filter(m => m.type === 'video').map(m => m.data);
 
             const jobData = {
                 id: jobId,
@@ -320,34 +715,37 @@ document.addEventListener("DOMContentLoaded", () => {
                 benefits: benefits,
                 salaryMin: salaryMin ? parseInt(salaryMin) : null,
                 salaryMax: salaryMax ? parseInt(salaryMax) : null,
-                images: images,
-                videos: videos,
+                images: [...existingMedia, ...uploadedUrls],
+                videos: [...existingVideos, ...uploadedVideoUrls],
                 companyId: currentUser.uid,
+                userId: currentUser.uid, // Backward compatibility
                 companyName: userData.name || 'Firma',
                 companyAvatar: userData.avatar || '🏢',
-                createdAt: now,
-                expiresAt: expiresAt,
+
                 jobPlanType: selectedJobType,
                 isPremium: selectedJobType === 2,
-                views: 0,
-                likes: 0,
                 active: true
             };
 
-            // Save job
-            await jobRef.set(jobData);
-
-            // Deduct credits
-            const newCredits = userCredits - cost;
-            await firebase.database().ref(`users/${currentUser.uid}/credits`).set(newCredits);
-
-            // Store media in localStorage
-            if (uploadedMedia.length > 0) {
-                const storedImages = JSON.parse(localStorage.getItem('jobImages') || '{}');
-                storedImages[jobId] = images;
-                localStorage.setItem('jobImages', JSON.stringify(storedImages));
+            // For update, we want to NOT overwrite createdAt and expiresAt if they exist
+            if (editMode) {
+                await jobRef.update(jobData);
+            } else {
+                jobData.createdAt = now;
+                jobData.expiresAt = expiresAt;
+                jobData.views = 0;
+                jobData.likes = 0;
+                await jobRef.set(jobData);
             }
 
+
+            // Deduct credits ONLY if not editing
+            if (!editMode) {
+                const newCredits = userCredits - selectedJobType;
+                await firebase.database().ref('users/' + currentUser.uid).update({
+                    credits: newCredits
+                });
+            }
             // Show success
             document.getElementById('job-form-container').classList.add('hidden');
             document.getElementById('credit-stripe').classList.add('hidden');
@@ -355,12 +753,13 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('view-job-link').href = `job-detail.html?id=${jobId}`;
 
             const daysText = selectedJobType === 1 ? '30' : '60';
-            document.getElementById('success-text').textContent =
-                `Vaše nabídka je viditelná ${daysText} dní. Zbývá ${newCredits} kreditů.`;
+            const msgText = editMode ? 'Změny byly uloženy.' : `Vaše nabídka je viditelná ${daysText} dní. Zbývá ${userCredits - selectedJobType} kreditů.`;
+            document.getElementById('success-text').textContent = msgText;
 
         } catch (error) {
             console.error('Error creating job:', error);
             showError('Chyba při publikování inzerátu');
+            const submitBtn = document.getElementById('submit-btn');
             submitBtn.disabled = false;
             updateSubmitButton();
         }

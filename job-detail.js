@@ -60,9 +60,24 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 document.getElementById('comment-form').classList.remove('hidden');
             }
+            updateOwnerActions();
         } else {
             document.getElementById('login-prompt').classList.remove('hidden');
             document.getElementById('comment-form').classList.add('hidden');
+            document.getElementById('owner-actions')?.classList.add('hidden');
+        }
+    }
+
+    function updateOwnerActions() {
+        if (!currentUser || !currentJob) return;
+        const ownerActions = document.getElementById('owner-actions');
+        if (!ownerActions) return;
+
+        const isOwner = currentJob.companyId === currentUser.uid || currentJob.userId === currentUser.uid;
+        if (isOwner || isAdmin()) {
+            ownerActions.classList.remove('hidden');
+        } else {
+            ownerActions.classList.add('hidden');
         }
     }
 
@@ -132,12 +147,63 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         metaContainer.innerHTML = metaHtml;
 
-        // Gallery
-        renderGallery(job.images || []);
+        // Gallery & Video
+        renderGallery(job.images || [], job.videos || []);
 
         // Check if already liked
         checkIfLiked();
+
+        // Render Expiry Badge
+        const expiryContainer = document.getElementById('expiry-badge-container');
+        if (expiryContainer && job.expiresAt) {
+            const now = Date.now();
+            const diffMs = job.expiresAt - now;
+            const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+            const isExpiringSoon = daysLeft <= 7;
+
+            let expiryText = '';
+            if (daysLeft > 1) expiryText = `${daysLeft} dní`;
+            else if (daysLeft === 1) expiryText = `Poslední den`;
+            else expiryText = `Dnes končí`;
+
+            expiryContainer.innerHTML = `
+                <div class="job-expiry-badge ${isExpiringSoon ? 'expiring-soon' : ''}" style="margin-left: 10px; height: 100%; align-self: stretch;">
+                    <svg viewBox="0 0 24 24" fill="none" style="width: 18px; height: 18px;">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                        <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <div style="display: flex; flex-direction: column; line-height: 1;">
+                        <span style="font-size: 0.9rem; font-weight: 800;">${expiryText}</span>
+                        <span style="font-size: 0.6rem; text-transform: uppercase;">Do smazání</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Finalize UI for author
+        updateOwnerActions();
     }
+
+    // ==================== OWNER ACTIONS ====================
+    document.getElementById('edit-job-btn')?.addEventListener('click', () => {
+        if (!jobId) return;
+        window.location.href = `job-form.html?edit=${jobId}`;
+    });
+
+    document.getElementById('delete-job-btn')?.addEventListener('click', async () => {
+        if (!confirm('Opravdu chcete tento inzerát smazat?')) return;
+
+        try {
+            await firebase.database().ref(`jobs/${jobId}`).remove();
+            showToast('🗑️ Inzerát smazán');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1500);
+        } catch (error) {
+            console.error('Error deleting job:', error);
+            showToast('❌ Chyba při mazání');
+        }
+    });
 
     function getCategoryLabel(category) {
         const labels = {
@@ -176,40 +242,94 @@ document.addEventListener("DOMContentLoaded", () => {
         return '';
     }
 
-    function renderGallery(images) {
+    function renderGallery(images, videos = []) {
         const container = document.getElementById('job-gallery');
 
-        if (!images || images.length === 0) {
-            // Check localStorage for images
+        const allMedia = [
+            ...videos.map(v => ({ type: 'video', url: v })),
+            ...(images || []).map(i => ({ type: 'image', url: i }))
+        ];
+
+        if (allMedia.length === 0) {
+            // Check localStorage for images (backwards compatibility)
             const storedImages = JSON.parse(localStorage.getItem('jobImages') || '{}');
             if (storedImages[jobId] && storedImages[jobId].length > 0) {
-                images = storedImages[jobId];
+                storedImages[jobId].forEach(url => allMedia.push({ type: 'image', url }));
             } else {
                 return; // Keep default no-image state
             }
         }
 
-        let html = `<img src="${images[0]}" alt="Job image" class="gallery-main" id="gallery-main">`;
+        let currentIndex = 0;
 
-        if (images.length > 1) {
-            html += '<div class="gallery-thumbs">';
-            images.forEach((img, index) => {
-                html += `<img src="${img}" alt="Thumbnail ${index + 1}" class="gallery-thumb ${index === 0 ? 'active' : ''}" data-index="${index}">`;
-            });
-            html += '</div>';
+        function updateGallery() {
+            const total = allMedia.length;
+            const current = allMedia[currentIndex];
+
+            // Generate HTML
+            let html = '';
+            if (current.type === 'video') {
+                html = `<video src="${current.url}" autoplay loop playsinline class="gallery-video"></video>`;
+            } else {
+                html = `<img src="${current.url}" alt="Job image ${currentIndex + 1}" class="gallery-image" id="gallery-img">`;
+            }
+
+            if (total > 1) {
+                html += `
+                    <div class="gallery-nav gallery-prev" id="gallery-prev">❮</div>
+                    <div class="gallery-nav gallery-next" id="gallery-next">❯</div>
+                    <div class="gallery-counter">${currentIndex + 1} / ${total}</div>
+                `;
+            }
+
+            container.innerHTML = html;
+
+            // Add event listeners if multiple images
+            if (total > 1) {
+                document.getElementById('gallery-prev').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentIndex = (currentIndex - 1 + total) % total;
+                    updateGallery();
+                });
+
+                document.getElementById('gallery-next').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentIndex = (currentIndex + 1) % total;
+                    updateGallery();
+                });
+
+                // Swipe support
+                let touchStartX = 0;
+                let touchEndX = 0;
+
+                const img = document.getElementById('gallery-img');
+                img.addEventListener('touchstart', e => {
+                    touchStartX = e.changedTouches[0].screenX;
+                });
+
+                img.addEventListener('touchend', e => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipe();
+                });
+
+                function handleSwipe() {
+                    const threshold = 50;
+                    if (touchEndX < touchStartX - threshold) {
+                        // Swiped Left -> Next
+                        currentIndex = (currentIndex + 1) % total;
+                        updateGallery();
+                    }
+                    if (touchEndX > touchStartX + threshold) {
+                        // Swiped Right -> Prev
+                        currentIndex = (currentIndex - 1 + total) % total;
+                        updateGallery();
+                    }
+                }
+            }
         }
 
-        container.innerHTML = html;
-
-        // Add thumbnail click events
-        container.querySelectorAll('.gallery-thumb').forEach(thumb => {
-            thumb.addEventListener('click', () => {
-                const index = parseInt(thumb.dataset.index);
-                document.getElementById('gallery-main').src = images[index];
-                container.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
-                thumb.classList.add('active');
-            });
-        });
+        // Initialize
+        updateGallery();
     }
 
     // ==================== VIEW COUNTER ====================

@@ -43,7 +43,7 @@
 
                 <h2 class="hero-title">
                     Najdi práci<br>
-                    <span class="highlight">swipenutím</span>
+                    swipenutím
                 </h2>
 
                 <p class="hero-description">
@@ -78,10 +78,7 @@
                 </div>
             </div>
 
-            <div class="scroll-indicator" id="scroll-down">
-                <span>Scrolluj dolů</span>
-                <div class="scroll-arrow">↓</div>
-            </div>
+
         </section>
 
         <!-- ==================== DYNAMIC JOB FEED ==================== -->
@@ -115,14 +112,19 @@
             <span class="credits-count" id="nav-credits-count">0</span>
             <span class="credits-label">Kredity</span>
         </div>
-        <a href="job-form.html" class="nav-item create-btn hidden" data-nav="create" title="Přidat inzerát"
-            id="create-btn">+</a>
+        <div class="nav-center-stack">
+            <a href="job-form.html" class="nav-item create-btn hidden" data-nav="create" title="Přidat inzerát"
+                id="create-btn">+</a>
+        </div>
         <div class="nav-item" data-nav="inbox">
             <span>💬</span><br>Inbox
             <span class="nav-badge hidden" id="inbox-badge">0</span>
         </div>
-        <div class="nav-item" data-nav="profile">
-            <span>👤</span><br>Profil
+        <div class="nav-stack">
+            <button class="nav-dash-btn hidden" id="nav-dash-btn" title="Můj Dashboard">📊</button>
+            <div class="nav-item" data-nav="profile">
+                <span>👤</span><br>Profil
+            </div>
         </div>
         <div class="nav-item hidden" data-nav="admin" id="admin-nav">
             <span>👑</span><br>Admin
@@ -216,7 +218,11 @@
                 <button class="profile-btn" id="my-applications-btn">
                     <span>📋</span> Moje přihlášky
                 </button>
+                <button class="profile-btn hidden" id="company-dashboard-btn">
+                    <span>📊</span> Můj Dashboard
+                </button>
                 <button class="profile-btn danger" id="logout-btn">
+
                     <span>🚪</span> Odhlásit se
                 </button>
             </div>
@@ -305,7 +311,33 @@
         </div>
     </div>
 
+    <!-- ==================== DASHBOARD MODAL ==================== -->
+    <div class="modal-overlay" id="dashboard-modal">
+        <div class="modal" style="max-width: 800px; max-height: 85vh; overflow-y: auto;">
+            <div class="modal-header" style="background: var(--color-b2b); color: #000;">
+                <h2>📊 Můj Dashboard</h2>
+                <button class="modal-close" id="dashboard-close">✕</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div class="dashboard-stats-grid" id="dashboard-total-stats"
+                    style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">
+                    <!-- Total stats will be injected here -->
+                </div>
+
+                <h3
+                    style="font-family: var(--font-bold); text-transform: uppercase; margin-bottom: 15px; border-bottom: 3px solid #000; padding-bottom: 10px;">
+                    📝 Moje aktivní inzeráty
+                </h3>
+
+                <div id="company-jobs-list" class="dashboard-jobs-list">
+                    <div style="text-align: center; padding: 40px; color: #666;">Načítání vašich inzerátů...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== ADMIN MODAL ==================== -->
+
     <div class="modal-overlay" id="admin-modal">
         <div class="modal" style="max-width: 650px; max-height: 85vh; overflow-y: auto;">
             <div class="modal-header" style="background: var(--color-accent);">
