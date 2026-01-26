@@ -738,6 +738,48 @@ document.addEventListener("DOMContentLoaded", () => {
                 await jobRef.set(jobData);
             }
 
+// === ODESLÁNÍ DAT DO MAKE.COM ===
+try {
+    const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/1ny89qb11eshsvrjr8szhjnh10pqez7m';
+    
+    const webhookData = {
+        action: editMode ? 'edit_job' : 'new_job',
+        jobId: jobId,
+        title: jobData.title,
+        companyName: jobData.companyName,
+        location: jobData.location,
+        category: jobData.category,
+        type: jobData.type,
+        salary: {
+            min: jobData.salaryMin,
+            max: jobData.salaryMax,
+            full: `${jobData.salaryMin || 0} - ${jobData.salaryMax || 0} Kč`
+        },
+        description: jobData.description,
+        planType: selectedJobType === 2 ? 'Premium' : 'Basic',
+        media: {
+            images: jobData.images,
+            videos: jobData.videos
+        },
+        contactEmail: currentUser.email,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(expiresAt).toISOString(),
+        adminLink: `https://tvoje-domena.cz/job-detail.html?id=${jobId}` // Uprav na svou doménu
+    };
+
+    fetch(MAKE_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(webhookData)
+    })
+    .then(response => console.log('Make.com received data'))
+    .catch(err => console.error('Make.com webhook error:', err));
+
+} catch (webhookErr) {
+    console.error('Chyba při přípravě webhooku:', webhookErr);
+}
+// === KONEC BLOKU PRO MAKE.COM ===
+
 
             // Deduct credits ONLY if not editing
             if (!editMode) {
