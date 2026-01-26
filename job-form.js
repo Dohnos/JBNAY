@@ -742,44 +742,51 @@ document.addEventListener("DOMContentLoaded", () => {
 try {
     const MAKE_WEBHOOK_URL = 'https://hook.eu2.make.com/1ny89qb11eshsvrjr8szhjnh10pqez7m';
     
+    // Příprava dat s pojistkami proti NULL/UNDEFINED
     const webhookData = {
         action: editMode ? 'edit_job' : 'new_job',
-        jobId: jobId,
-        title: jobData.title,
-        companyName: jobData.companyName,
-        location: jobData.location,
-        category: jobData.category,
-        type: jobData.type,
+        jobId: jobId || "",
+        title: title || "",
+        companyName: userData.name || "Neznámá firma",
+        location: location || "",
+        category: category || "",
+        type: workType || "",
+        // Salary objekt - pokud není vyplněno, posíláme 0
         salary: {
-            min: jobData.salaryMin,
-            max: jobData.salaryMax,
-            full: `${jobData.salaryMin || 0} - ${jobData.salaryMax || 0} Kč`
+            min: salaryMin ? parseInt(salaryMin) : 0,
+            max: salaryMax ? parseInt(salaryMax) : 0,
+            full: (salaryMin && salaryMax) ? `${salaryMin} - ${salaryMax} Kč` : "Dohodou"
         },
-        description: jobData.description,
+        description: description || "",
         planType: selectedJobType === 2 ? 'Premium' : 'Basic',
+        // Media objekt - pojistka, aby to bylo vždy pole
         media: {
-            images: jobData.images,
-            videos: jobData.videos
+            images: (jobData.images && jobData.images.length > 0) ? jobData.images : [],
+            videos: (jobData.videos && jobData.videos.length > 0) ? jobData.videos : []
         },
-        contactEmail: currentUser.email,
+        contactEmail: currentUser.email || "",
         createdAt: new Date().toISOString(),
         expiresAt: new Date(expiresAt).toISOString(),
-        adminLink: `https://tvoje-domena.cz/job-detail.html?id=${jobId}` // Uprav na svou doménu
+        // Pokud adminLink ještě neexistuje, pošleme placeholder
+        adminLink: window.location.origin + `/job-detail.html?id=${jobId}`
     };
 
-    fetch(MAKE_WEBHOOK_URL, {
+    console.log("Odesílám data do Make:", webhookData); // Pro kontrolu v konzoli
+
+    // DŮLEŽITÉ: Použít await, aby se počkalo na odeslání
+    await fetch(MAKE_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(webhookData)
-    })
-    .then(response => console.log('Make.com received data'))
-    .catch(err => console.error('Make.com webhook error:', err));
+    });
+    
+    console.log('Make.com webhook úspěšně odeslán.');
 
 } catch (webhookErr) {
-    console.error('Chyba při přípravě webhooku:', webhookErr);
+    console.error('Chyba při odesílání webhooku:', webhookErr);
+    // Zde nevyhazujeme chybu uživateli, aby se inzerát uložil i tak
 }
 // === KONEC BLOKU PRO MAKE.COM ===
-
 
             // Deduct credits ONLY if not editing
             if (!editMode) {
